@@ -1,0 +1,117 @@
+/*=============================================================================================================================
+*Class Name     : FieldAxDBManager
+*Description    : Inserting Service Plan and Service Plan Coverage Records.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : public void OnAfterInsert (List<Contract> contractList)
+================================================================================================================================*/
+public class FieldAxDBManager {
+    
+    Public Static List<Contract> onUpdateCnt(List<Contract> CntListUpd)
+    {
+        if(CntListUpd.size() > 0)
+        {
+            Update CntListUpd;
+        }
+        return null;
+    }
+/*===============================================================================================================
+*Class Name     : FieldAxDBManager
+*Description    : Creating Service Plan and Service Plan Coverage.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        :public static List<Service_Plan_Coverage__c> insertServicePlan (List<fax__Service_Term__c> servPlanList)
+================================================================================================================*/
+    
+    public static List<fax__Service_Term__c> insertServicePlan (List<fax__Service_Term__c> servPlanList){
+        
+        if(servPlanList.size() > 0)
+        {
+            System.debug(servPlanList);
+            insert servPlanList; //Insert Service Plan Records.
+            
+        }
+        //Return Service Plan List Variable Value for Storing Service Plan ID For Inserting Service Plan Coverage.
+        return servPlanList; 
+        
+    }
+/*===============================================================================================================
+*Class Name     : FieldAxDBManager
+*Description    : Creating Service Plan and Service Plan Coverage.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : 
+================================================================================================================*/
+    public static List<Service_Plan_Coverage__c> insertSPCoverage (List<Service_Plan_Coverage__c> spcoverageList){
+        
+        if(spcoverageList.size() > 0){
+            
+            insert spcoverageList; // Inserting Service Plan Coverage Records.
+            
+        }
+        return spcoverageList;
+    }
+/*===============================================================================================================
+*Class Name     : FieldAxDBManager
+*Description    : Creating Service Plan and Service Plan Coverage.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : 
+================================================================================================================*/
+    Public Static List<fax__Service_Term__c> updateServicePlan(List<fax__Service_Term__c> servPlanUpdateList)
+    {
+        if(servPlanUpdateList.size() > 0)
+        {
+            System.debug(servPlanUpdateList);
+            // Update Service Plan Records.
+            Update servPlanUpdateList;
+        }
+        return servPlanUpdateList;
+    }
+/*===============================================================================================================
+*Class Name     : FieldAxDBManager
+*Description    : Creating Service Plan and Service Plan Coverage.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : 
+================================================================================================================*/
+    Public static List<fax__Service_Term__c> deleteSP(List<fax__Service_Term__c> SPDelete)
+    {
+        System.debug(SPDelete);
+        if(SPDelete.size() > 0)
+        {
+            delete SPDelete;
+        }
+        return null;
+    }
+/*===============================================================================================================
+*Class Name     : FieldAxDBManager
+*Description    : Creating Service Plan and Service Plan Coverage.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : 
+================================================================================================================*/
+    Public Static List<Service_Plan_Coverage__c> deleteSPC (List<Service_Plan_Coverage__c> spcVal)
+    {
+        if(spcVal.size() > 0)
+        {
+            delete spcVal;
+        } 
+       return null; 
+    }
+/*=============================================================================================================================
+*Class Name     : FieldAxDBManager
+*Description    : 
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 15 Apr, 2023
+*Version        : 1.0
+*Methods        : public void OnAfterInsert ()
+================================================================================================================================*/
+    
+}

@@ -1,0 +1,58 @@
+*===============================================================================================================
+*Class Name     : ContractTriggerHanlder
+*Description    : Creating Service Plan and Service Plan Coverage.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : public void OnAfterInsert(List<Contract> contractList) 
+                  OnAfterUpdate(List<Contract> newcontractList,Map<id,Contract> oldcontractList)
+================================================================================================================*/
+public class ContractTriggerHandler {
+    
+    Public InstallBase__c Install; 
+    Public List<fax__Service_Term__c> returnValue; // Service Plan Variable
+    Public List<Service_Plan_Coverage__c> spcList; // Service Plan Coverage List Variable
+   
+    public void OnAfterUpdate(List<Contract> newcontractList,Map<id,Contract> oldcontractList)
+    {
+        try
+        {
+            for(Contract Cont : newcontractList)
+            {
+                
+                if(cont.Create_or_Update_Service_Plan__c == true)
+                {
+                    FieldAxAppManager.updServicePlan(Cont.id, cont.Status,cont.Contract_Type__c);
+     
+                }
+                else if(cont.StartDate != oldcontractList.get(cont.id).StartDate || cont.EndDate != oldcontractList.get(cont.id).EndDate || cont.Status != oldcontractList.get(cont.id).Status || cont.Service_Level__c != oldcontractList.get(cont.id).Service_Level__c ||  cont.Contract_Type__c != oldcontractList.get(cont.id).Contract_Type__c)
+                {
+                    System.debug('Update Service Plan Field Method Run');
+                    FieldAxAppManager.updServPlanFields(Cont.id,Cont.Status,Cont.Contract_Type__c,Cont.StartDate,Cont.EndDate,Cont.Service_Level__c);
+                }
+            } 
+        }   
+        Catch(Exception e)
+        {
+            System.debug('Exception Raised Due to ==>' + e);
+        }
+    }
+/*===============================================================================================================
+*Class Name     : ContractTriggerHanlder
+*Description    : Creating Service Plan and Service Plan Coverage.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : 
+================================================================================================================*/
+    Public void beforeDelete(Map<id,Contract> contractDelete)
+    {
+        Set<id> contractID = contractDelete.keyset();
+        System.debug(contractID);
+        
+        if(contractID != null)
+        {
+          List<fax__Service_Term__c> recievedValues = FieldAxAppManager.SPDelete(contractID);
+        }
+    }
+}

@@ -1,0 +1,244 @@
+/*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Description    : Assign Service Plan and Service Plan Coverage Values into List Variable.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : Public Static List<Service_Plan_Coverage__c> createServicePlanCoverage (List<fax__Service_Term__c> SerPlanList)
+public static List<fax__Service_Term__c> updServicePlan (id contractID,String Status,Date startDate,Date EndDate,id InstallbaseId,String ServiceLevel,id AccountID,DateTime NextMaintenanceDate)
+Public Static List<Contract> onUpdateContract (id recID,String cntStatus,String contType)
+======================================================================================================================================================================================================================*/
+public class FieldAxAppManager
+{
+     
+    Public Static List<Service_Plan_Coverage__c> createServicePlanCoverage (List<fax__Service_Term__c> SerPlanList)
+    {
+        
+        id ContID;
+        id ServID;
+        System.debug(SerPlanList);
+        // Service Plan Coverage List Variable
+        List<Service_Plan_Coverage__c> spcList = new  List<Service_Plan_Coverage__c> ();
+        for(fax__Service_Term__c servpln : SerPlanList)
+        {
+            ServID = servpln.id;
+            ContID= servpln.Contract__c;
+        }
+        List<Contract_Coverage__c> contractCovrg =[SELECT Id, Name, Install_base__c, ContractName__c FROM Contract_Coverage__c Where ContractName__c =: ContID];
+        
+        try{
+            if(contractCovrg.size () > 0)
+            {
+                for(fax__Service_Term__c servPlnLst : SerPlanList){
+                    for(Contract_Coverage__c contcov : contractCovrg){
+                        Service_Plan_Coverage__c spc = new Service_Plan_Coverage__c();
+                        spc.Install_base__c = contcov.Install_base__c;
+                        spc.Service_Plan__c = servPlnLst.id;
+                        spcList.add(spc);
+                    }
+                }
+            }
+            else
+            {
+                for(fax__Service_Term__c  servPlan : SerPlanList)
+                {
+                    Service_Plan_Coverage__c spc1 = new Service_Plan_Coverage__c();
+                    spc1.Install_base__c = servPlan.Install_base__c;
+                    spc1.Service_Plan__c = servPlan.id;
+                    spcList.add(spc1);
+                }
+                
+            }
+            // Calling FieldAxDBManager Class InsertSPCovergae Method to Insert Service Plan Coverage.
+            List<Service_Plan_Coverage__c> spcRet= FieldAxDBManager.insertSPCoverage(spcList);
+            
+            List<Contract> contractList1 = new List<Contract>();
+            Contract cn = new Contract ();
+            cn.id = ContID;
+            cn.Create_or_Update_Service_Plan__c = false;
+            contractList1.add(cn);
+            FieldAxDBManager.onUpdateCnt(contractList1);
+            return null;
+        }
+        catch(Exception e)
+        { 
+            System.debug('Exception Raised Due to ==>' + e);
+            return null;
+        }
+    }
+/*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Description    : Assign Service Plan and Service Plan Coverage Values into List Variable.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : 
+======================================================================================================================================================================================================================*/
+    
+    public static List<fax__Service_Term__c> updServicePlan (id contractID,String Status,String cnType)
+    {
+        Set<id> ServPlanID = new Set<id>();
+        
+        try
+        { 
+            if(cnType == 'Service' || cnType == 'Warranty' )
+            {
+                Contract cntQuery = [select id,AccountId,Service_Level__c,startDate,EndDate,Install_base__c,Status,Maintenance_Frequency_Months__c,Contract_Type__c,Create_or_Update_Service_Plan__c From Contract Where id =: contractID ];
+                
+                List<fax__Service_Term__c> servPlanList = new List<fax__Service_Term__c>();
+                // Query to Find Service Plan is Available For Current Contract id.
+                List<fax__Service_Term__c> SerPlanQuery = [Select id,Name,Contract__c,Install_base__c From fax__Service_Term__c WHERE Contract__c =: contractID];
+                if(SerPlanQuery.size() > 0){
+                    for(fax__Service_Term__c servPlanQuery : SerPlanQuery)
+                    {
+                        fax__Service_Term__c servicePlan = new fax__Service_Term__c(); 
+                        if(servPlanQuery.id != null)
+                        {
+                            servicePlan.id = servPlanQuery.id;
+                            ServPlanID.add(servPlanQuery.id);
+                        }
+                        
+                        if(cntQuery.Maintenance_Frequency_Months__c == '3'){
+                            servicePlan.fax__Schedule_On__c = 'ScheduleForDays';
+                            servicePlan.fax__Days__c = 90;
+                        }
+                        if(cntQuery.Maintenance_Frequency_Months__c == '6'){
+                            servicePlan.fax__Schedule_On__c = 'SemiAnnually	';
+                        }
+                        if( cntQuery.Maintenance_Frequency_Months__c == '12'){
+                            servicePlan.fax__Schedule_On__c = 'Annually';
+                        }
+                        servicePlan.Contract__c = cntQuery.id;
+                        servicePlan.fax__Status__c = cntQuery.Status;
+                        servicePlan.fax__Start_Date__c = cntQuery.startDate;
+                        servicePlan.Install_base__c = cntQuery.Install_base__c;
+                        servicePlan.fax__End_Date__c = cntQuery.EndDate;
+                        servicePlan.fax__Type__c = cntQuery.Contract_Type__c;
+                        servicePlan.Service_Level__c = cntQuery.Service_Level__c;
+                        if(SerPlanQuery.size() == 0){
+                            servicePlan.fax__Site__c = cntQuery.AccountId;
+                        }
+                        servicePlan.fax__Parts_Pricing_Model__c = Label.Service_Plan_Pricebook_Id;
+                        servicePlan.fax__Standard_Call_Out_Charge__c = Integer.valueOf(Label.Service_Plan_Standard_Charge);
+                        servicePlan.fax__OOH_Call_Out_Charge__c = Integer.valueOf(Label.Service_Plan_Standard_Charge);
+                        servPlanList.add(servicePlan);
+                    }
+                }
+                else
+                {
+                    fax__Service_Term__c servicePlan = new fax__Service_Term__c(); 
+                    if(cntQuery.Maintenance_Frequency_Months__c == '3'){
+                        servicePlan.fax__Schedule_On__c = 'ScheduleForDays';
+                        servicePlan.fax__Days__c = 90;
+                    }
+                    if(cntQuery.Maintenance_Frequency_Months__c == '6'){
+                        servicePlan.fax__Schedule_On__c = 'SemiAnnually	';
+                    }
+                    if( cntQuery.Maintenance_Frequency_Months__c == '12'){
+                        servicePlan.fax__Schedule_On__c = 'Annually';
+                    }
+                    servicePlan.Contract__c = cntQuery.id;
+                    servicePlan.fax__Status__c = cntQuery.Status;
+                    servicePlan.fax__Start_Date__c = cntQuery.startDate;
+                    servicePlan.fax__End_Date__c = cntQuery.EndDate;
+                    servicePlan.Install_base__c = cntQuery.Install_base__c;
+                    servicePlan.fax__Site__c = cntQuery.AccountId;
+                    servicePlan.fax__Type__c = cntQuery.Contract_Type__c;
+                    servicePlan.Service_Level__c = cntQuery.Service_Level__c;
+                    servicePlan.fax__Parts_Pricing_Model__c = Label.Service_Plan_Pricebook_Id;
+                    servicePlan.fax__Standard_Call_Out_Charge__c = Integer.valueOf(Label.Service_Plan_Standard_Charge);
+                    servicePlan.fax__OOH_Call_Out_Charge__c = Integer.valueOf(Label.Service_Plan_Standard_Charge);
+                    servPlanList.add(servicePlan);
+                }
+                System.debug(servPlanList);
+                if(SerPlanQuery.size() > 0)
+                {
+                    // Calling FieldAxDBManager class updateServicePlan Method to Update Service Plan Records.
+                    List<fax__Service_Term__c> returnValueSPC = FieldAxDBManager.updateServicePlan(servPlanList);
+                    List<Service_Plan_Coverage__c> SPC = [SELECT Id, Name, Install_base__c, Service_Plan__c FROM Service_Plan_Coverage__c Where Service_Plan__c =:ServPlanID ];
+                    FieldAxDBManager.deleteSPC(SPC);
+                    createServicePlanCoverage(servPlanList);
+                }
+                
+                else{
+                    //if Service Plan Not Available For Current Contract Calling Create Service Plan Method To Create Service Plan
+                    
+                    if(cntQuery.Status == 'Active' && cntQuery.Contract_Type__c == 'Service' || cntQuery.Contract_Type__c == 'Warranty')
+                    {
+                        List<fax__Service_Term__c> returnValueSPC = FieldAxDBManager.insertServicePlan(servPlanList);
+                        // if Service Plan Coverage is not Available for this Service Plan, Creating New Service Plan Coverage.
+                        createServicePlanCoverage(returnValueSPC);
+                    }
+                }
+            }
+            return null;
+        }
+        catch(Exception e)
+        { 
+            System.debug('Exception Raised Due to ==> ' + e);
+            return null;
+        }
+    } 
+/*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Description    : Assign Service Plan and Service Plan Coverage Values into List Variable.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : 
+======================================================================================================================================================================================================================*/
+    
+    Public Static List<fax__Service_Term__c> SPDelete(Set<id> ParentID)
+    {
+        // FieldAxDBManager DBManager = new FieldAxDBManager();
+        
+        List<fax__Service_Term__c> SPList = [Select id,Name,Contract__c From fax__Service_Term__c WHERE Contract__c =: ParentID];
+        
+        if(SPList.size() > 0){
+            FieldAxDBManager.deleteSP(SPList);
+        }
+        return null;
+    }
+/*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Description    : Assign Service Plan and Service Plan Coverage Values into List Variable.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : 
+======================================================================================================================================================================================================================*/
+Public Static List<fax__Service_Term__c> updServPlanFields (id ConID,String Status,String cntractType,Date startDate,Date endDate,String ServiceLeval)
+    {
+        List<fax__Service_Term__c> SPList = new List<fax__Service_Term__c>();
+        List<fax__Service_Term__c> servPlan = [Select id,Name,Contract__c From fax__Service_Term__c WHERE Contract__c =: ConID ];
+        if(servPlan.size() > 0)
+        {
+            for(fax__Service_Term__c SP : servPlan)
+            {
+                fax__Service_Term__c SPVar = new fax__Service_Term__c();
+                SPVar.Id = SP.id;
+                SPVar.fax__Status__c = Status;
+                SPVar.fax__Start_Date__c = startDate;
+                SPVar.fax__End_Date__c = endDate;
+                SPVar.fax__Type__c = cntractType;
+                SPVar.Service_Level__c = ServiceLeval;
+                SPList.add(SPVar);
+            }
+            if(SPList.size() > 0)
+            {
+                FieldAxDBManager.updateServicePlan(SPList);
+            }
+        }
+        return null;
+    }
+/*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Description    : 
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 15 Apr, 2023
+*Version        : 1.0
+*Methods        : 
+======================================================================================================================================================================================================================*/
+
+    
+}

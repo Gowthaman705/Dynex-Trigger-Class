@@ -1,0 +1,956 @@
+/*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Description    : Assign Service Plan and Service Plan Coverage Values into List Variable.
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : Public Static List<Service_Plan_Coverage__c> createServicePlanCoverage (List<fax__Service_Term__c> SerPlanList)
+public static List<fax__Service_Term__c> updServicePlan (id contractID,String Status,Date startDate,Date EndDate,id InstallbaseId,String ServiceLevel,id AccountID,DateTime NextMaintenanceDate)
+Public Static List<Contract> onUpdateContract (id recID,String cntStatus,String contType)
+======================================================================================================================================================================================================================*/
+public class FieldAxAppManager
+{
+    
+    Public Static List<Service_Plan_Coverage__c> createServicePlanCoverage (List<fax__Service_Term__c> SerPlanList)
+    {
+        
+        id ContID;
+        id ServID;
+        
+        
+        System.debug(SerPlanList);
+        // Service Plan Coverage List Variable
+        List<Service_Plan_Coverage__c> spcList = new  List<Service_Plan_Coverage__c> ();
+        for(fax__Service_Term__c servpln : SerPlanList)
+        {
+            ServID = servpln.id;
+            ContID= servpln.Contract__c;
+        }
+        List<Contract> ContractLst = [Select id,Name,Install_base__c From Contract Where id =: ContID ];
+        List<Contract_Coverage__c> contractCovrg =[SELECT Id, Name, Install_base__c, ContractName__c FROM Contract_Coverage__c Where ContractName__c =: ContID];
+        
+        try{	
+            if(contractCovrg.size () > 0)
+            {
+                for(fax__Service_Term__c servPlnLst : SerPlanList){
+                    for(Contract_Coverage__c contcov : contractCovrg){
+                        Service_Plan_Coverage__c spc = new Service_Plan_Coverage__c();
+                        spc.Install_base__c = contcov.Install_base__c;
+                        spc.Service_Plan__c = servPlnLst.id;
+                        spcList.add(spc);
+                    }
+                }
+            }
+            else
+            {
+                for(COntract CntList: ContractLst)
+                {
+                    Service_Plan_Coverage__c spc1 = new Service_Plan_Coverage__c();
+                    spc1.Install_base__c = CntList.Install_base__c;
+                    spc1.Service_Plan__c = ServID;
+                    spcList.add(spc1);
+                }
+                
+            }
+            // Calling FieldAxDBManager Class InsertSPCovergae Method to Insert Service Plan Coverage.
+            List<Service_Plan_Coverage__c> spcRet= FieldAxDBManager.insertSPCoverage(spcList);
+            
+            List<Contract> contractList1 = new List<Contract>();
+            Contract cn = new Contract ();
+            cn.id = ContID;
+            cn.Create_or_Update_Service_Plan__c = false;
+            contractList1.add(cn);
+            FieldAxDBManager.onUpdateCnt(contractList1);
+            return null;
+        }
+        catch(Exception e)
+        { 
+            System.debug('Exception Raised Due to ==>' + e);
+            return null;
+        }
+    }
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : public static List<fax__Service_Term__c> updServicePlan (id contractID,String Status,String cnType)
+======================================================================================================================================================================================================================*/
+    
+    public static List<fax__Service_Term__c> updServicePlan (id contractID,String Status,String cnType)
+    {
+        Set<id> ServPlanID = new Set<id>();
+        
+        try
+        { 
+            if(cnType == 'Service' || cnType == 'Warranty' )
+            {
+                Contract cntQuery = [select id,AccountId,Service_Level__c,startDate,EndDate,Status,Maintenance_Frequency_Months__c,Contract_Type__c,Create_or_Update_Service_Plan__c From Contract Where id =: contractID ];
+                
+                List<fax__Service_Term__c> servPlanList = new List<fax__Service_Term__c>();
+                // Query to Find Service Plan is Available For Current Contract id.
+                List<fax__Service_Term__c> SerPlanQuery = [Select id,Name,Contract__c From fax__Service_Term__c WHERE Contract__c =: contractID];
+                if(SerPlanQuery.size() > 0){
+                    for(fax__Service_Term__c servPlanQuery : SerPlanQuery)
+                    {
+                        fax__Service_Term__c servicePlan = new fax__Service_Term__c(); 
+                        if(servPlanQuery.id != null)
+                        {
+                            servicePlan.id = servPlanQuery.id;
+                            ServPlanID.add(servPlanQuery.id);
+                        }
+                        
+                        if(cntQuery.Maintenance_Frequency_Months__c == '3'){
+                            servicePlan.fax__Schedule_On__c = 'ScheduleForDays';
+                            servicePlan.fax__Days__c = 90;
+                        }
+                        if(cntQuery.Maintenance_Frequency_Months__c == '6'){
+                            servicePlan.fax__Schedule_On__c = 'SemiAnnually	';
+                        }
+                        if( cntQuery.Maintenance_Frequency_Months__c == '12'){
+                            servicePlan.fax__Schedule_On__c = 'Annually';
+                        }
+                        servicePlan.Contract__c = cntQuery.id;
+                        servicePlan.fax__Status__c = cntQuery.Status;
+                        servicePlan.fax__Start_Date__c = cntQuery.startDate;
+                        
+                        
+                        servicePlan.fax__End_Date__c = cntQuery.EndDate;
+                        servicePlan.fax__Type__c = cntQuery.Contract_Type__c;
+                        servicePlan.Service_Level__c = cntQuery.Service_Level__c;
+                        if(SerPlanQuery.size() == 0){
+                            servicePlan.fax__Site__c = cntQuery.AccountId;
+                        }
+                        servicePlan.fax__Parts_Pricing_Model__c = Label.Service_Plan_Pricebook_Id;
+                        servicePlan.fax__Standard_Call_Out_Charge__c = Integer.valueOf(Label.Service_Plan_Standard_Charge);
+                        servicePlan.fax__OOH_Call_Out_Charge__c = Integer.valueOf(Label.Service_Plan_Standard_Charge);
+                        servPlanList.add(servicePlan);
+                    }
+                }
+                else
+                {
+                    fax__Service_Term__c servicePlan = new fax__Service_Term__c(); 
+                    if(cntQuery.Maintenance_Frequency_Months__c == '3'){
+                        servicePlan.fax__Schedule_On__c = 'ScheduleForDays';
+                        servicePlan.fax__Days__c = 90;
+                    }
+                    if(cntQuery.Maintenance_Frequency_Months__c == '6'){
+                        servicePlan.fax__Schedule_On__c = 'SemiAnnually	';
+                    }
+                    if( cntQuery.Maintenance_Frequency_Months__c == '12'){
+                        servicePlan.fax__Schedule_On__c = 'Annually';
+                    }
+                    servicePlan.Contract__c = cntQuery.id;
+                    servicePlan.fax__Status__c = cntQuery.Status;
+                    servicePlan.fax__Start_Date__c = cntQuery.startDate;
+                    servicePlan.fax__End_Date__c = cntQuery.EndDate;
+                    
+                    
+                    servicePlan.fax__Site__c = cntQuery.AccountId;
+                    servicePlan.fax__Type__c = cntQuery.Contract_Type__c;
+                    servicePlan.Service_Level__c = cntQuery.Service_Level__c;
+                    servicePlan.fax__Parts_Pricing_Model__c = Label.Service_Plan_Pricebook_Id;
+                    servicePlan.fax__Standard_Call_Out_Charge__c = Integer.valueOf(Label.Service_Plan_Standard_Charge);
+                    servicePlan.fax__OOH_Call_Out_Charge__c = Integer.valueOf(Label.Service_Plan_Standard_Charge);
+                    servPlanList.add(servicePlan);
+                }
+                System.debug(servPlanList);
+                if(SerPlanQuery.size() > 0)
+                {
+                    // Calling FieldAxDBManager class updateServicePlan Method to Update Service Plan Records.
+                    List<fax__Service_Term__c> returnValueSPC = FieldAxDBManager.updateServicePlan(servPlanList);
+                    List<Service_Plan_Coverage__c> SPC = [SELECT Id, Name, Service_Plan__c FROM Service_Plan_Coverage__c Where Service_Plan__c =:ServPlanID ];
+                    FieldAxDBManager.deleteSPC(SPC);
+                    createServicePlanCoverage(servPlanList);
+                }
+                
+                else{
+                    //if Service Plan Not Available For Current Contract Calling Create Service Plan Method To Create Service Plan
+                    
+                    if(cntQuery.Status == 'Active' && cntQuery.Contract_Type__c == 'Service' || cntQuery.Contract_Type__c == 'Warranty')
+                    {
+                        List<fax__Service_Term__c> returnValueSPC = FieldAxDBManager.insertServicePlan(servPlanList);
+                        // if Service Plan Coverage is not Available for this Service Plan, Creating New Service Plan Coverage.
+                        createServicePlanCoverage(returnValueSPC);
+                    }
+                }
+            }
+            return null;
+        }
+        catch(Exception e)
+        { 
+            System.debug('Exception Raised Due to ==> ' + e);
+            return null;
+        }
+    } 
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : Public Static List<fax__Service_Term__c> SPDelete(Set<id> ParentID)
+======================================================================================================================================================================================================================*/
+    
+    Public Static List<fax__Service_Term__c> SPDelete(Set<id> ParentID)
+    {
+        // FieldAxDBManager DBManager = new FieldAxDBManager();
+        
+        List<fax__Service_Term__c> SPList = [Select id,Name,Contract__c From fax__Service_Term__c WHERE Contract__c =: ParentID];
+        
+        if(SPList.size() > 0){
+            FieldAxDBManager.deleteSP(SPList);
+        }
+        return null;
+    }
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 06/04/2023
+*Version        : 1.0
+*Methods        : Public Static List<fax__Service_Term__c> updServPlanFields (id ConID,String Status,String cntractType,Date startDate,Date endDate,String ServiceLeval)
+======================================================================================================================================================================================================================*/
+    Public Static List<fax__Service_Term__c> updServPlanFields (id ConID,String Status,String cntractType,Date startDate,Date endDate,String ServiceLeval)
+    {
+        List<fax__Service_Term__c> SPList = new List<fax__Service_Term__c>();
+        List<fax__Service_Term__c> servPlan = [Select id,Name,Contract__c From fax__Service_Term__c WHERE Contract__c =: ConID ];
+        if(servPlan.size() > 0)
+        {
+            for(fax__Service_Term__c SP : servPlan)
+            {
+                fax__Service_Term__c SPVar = new fax__Service_Term__c();
+                SPVar.Id = SP.id;
+                SPVar.fax__Status__c = Status;
+                SPVar.fax__Start_Date__c = startDate;
+                SPVar.fax__End_Date__c = endDate;
+                SPVar.fax__Type__c = cntractType;
+                SPVar.Service_Level__c = ServiceLeval;
+                SPList.add(SPVar);
+            }
+            if(SPList.size() > 0)
+            {
+                FieldAxDBManager.updateServicePlan(SPList);
+            }
+        }
+        return null;
+    }
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 15 Apr, 2023
+*Version        : 1.0
+*Methods        : public static List<fax__Job__c> createChecklistItemsForInsert(List<fax__Job__c> newJobs)
+======================================================================================================================================================================================================================*/
+    public static void createChecklistItems(Set<Id> jobIds) {
+        List<fax__Job__c> jobs = [SELECT Id, fax__Job_Type__c FROM fax__Job__c WHERE Id IN :jobIds ORDER BY CreatedDate ASC];
+        createChecklistItemsForInsert(jobs);
+    }
+    
+    public static List<fax__Job__c> createChecklistItemsForInsert(List<fax__Job__c> newJobs) {
+        List<Checklist_Item__c> checklistItems = new List<Checklist_Item__c>();
+        List<Checklist__c> checklistsToInsert = new List<Checklist__c>();
+        Set<Id> newJobTypeIds = new Set<Id>();
+        
+        try{
+            for (fax__Job__c job : newJobs) {
+                if (job.fax__Job_Type__c != null) {
+                    newJobTypeIds.add(job.fax__Job_Type__c);
+                }
+                
+                if(!newJobTypeIds.isEmpty()) {
+                    List<Checklist_Item__c> newChecklistItems = [SELECT Id, Item__c, Job_Type__c FROM Checklist_Item__c WHERE Job_Type__c IN :newJobTypeIds ORDER BY CreatedDate ASC];
+                    for (Checklist_Item__c item : newChecklistItems) {
+                        Checklist__c checklist = new Checklist__c();
+                        checklist.Job__c = job.ID;
+                        checklist.Item__c = item.Item__c;
+                        
+                        
+                        checklistsToInsert.add(checklist);        
+                    }
+                }
+            }
+            if (!checklistsToInsert.isEmpty()) {
+                FieldAXDBManager.insertCheckList(checklistsToInsert);
+            }
+        }
+        catch(Exception e) { 
+            System.debug('Exception: ' + e.getMessage() + '\n' + e.getStackTraceString());
+        }
+        return null;
+    }
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 15 Apr, 2023
+*Version        : 1.0
+*Methods        : public static void createChecklistItemsOnUpdate(List<fax__Job__c> newJobs, Map<Id, fax__Job__c> oldJobs)
+======================================================================================================================================================================================================================*/    
+    public static void createChecklistItemsOnUpdate(List<fax__Job__c> newJobs, Map<Id, fax__Job__c> oldJobs) {
+        Set<Id> jobIds = new Set<Id>();
+        Set<Id> jobTypeIds = new Set<Id>();
+        
+        for(fax__Job__c job : newJobs) {
+            jobIds.add(job.Id);
+        }
+        List<fax__Job__c> jobsToUpdate = [SELECT Id, fax__Job_Type__c FROM fax__Job__c WHERE Id IN :jobIds];
+        List<Checklist__c> checklistItemsToDelete = [SELECT Id, Item__c,Job__c FROM Checklist__c WHERE Job__c IN :jobIds];
+        
+        if (!jobsToUpdate.isEmpty()) {
+            for (fax__Job__c job : jobsToUpdate) {
+                jobTypeIds.add(job.fax__Job_Type__c);
+            }
+            
+            Map<Id, fax__Job_Type__c> jobTypes = new Map<Id, fax__Job_Type__c>([SELECT Id,Name FROM fax__Job_Type__c WHERE Id IN :jobTypeIds]);
+            
+            for (fax__Job__c job : jobsToUpdate) {
+                String oldJobType = oldJobs.get(job.Id).fax__Job_Type__c;
+                String newJobType = job.fax__Job_Type__c;
+                if (oldJobType != newJobType) {
+                    deleteChecklistItems(checklistItemsToDelete);
+                    if (jobTypes.containsKey(newJobType)) {
+                        createChecklistItems(jobIds);
+                    }
+                }
+            }
+        }
+    }
+    
+    
+    public static void deleteChecklistItems(List<Checklist__c> checklistItemsToDelete) {
+        if (!checklistItemsToDelete.isEmpty()) {
+            
+            delete checklistItemsToDelete;
+        }
+    }
+    
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 15 Apr, 2023
+*Version        : 1.0
+*Methods        : public static List<fax__Job__c> createRequiredPartsForInsert(List<fax__Job__c> newJobs)
+======================================================================================================================================================================================================================*/
+    public static void createRequiredParts(Set<Id> jobIds) {
+        List<fax__Job__c> jobs = [SELECT Id, fax__Job_Type__c FROM fax__Job__c WHERE Id IN :jobIds];
+        createRequiredPartsForInsert(jobs);
+    }
+    // Creates required parts for given jobs by querying the fax__Required_Part__c records
+    public static List<fax__Job__c> createRequiredPartsForInsert(List<fax__Job__c> newJobs) {
+        // It also creates fax__Part__c records for each of the required parts. 
+        List<fax__Required_Part__c> requiredParts = new List<fax__Required_Part__c>();
+        List<fax__Part__c> partsToInsert = new List<fax__Part__c>();
+        List<fax__Part__c> insertParts = New List<fax__Part__c>();
+        Set<Id> newJobTypeIds = new Set<Id>();
+        try{
+            for (fax__Job__c job : newJobs) {
+                if (job.fax__Job_Type__c != null) {
+                    newJobTypeIds.add(job.fax__Job_Type__c);
+                }
+                
+                if(!newJobTypeIds.isEmpty()) {
+                    List<fax__Required_Part__c> requiredPart = [Select Id, Name,fax__Default_Qty__c,fax__Product__c, fax__Job_Type__c from fax__Required_Part__c WHERE fax__Job_Type__c IN :newJobTypeIds order by Name asc];
+                    for (fax__Required_Part__c reqparts : requiredPart) {
+                        fax__Part__c part = new fax__Part__c();
+                        part.fax__Product__c = reqparts.fax__Product__c;
+                        part.fax__Job_New__c = job.Id;
+                        part.fax__Quantity__c = reqparts.fax__Default_Qty__c;
+                        part.Name = reqparts.Name; 
+                        
+                        insertParts.add(part);        
+                    }
+                }
+            }
+            // and calls the FieldAxDBManager class's createRequiredPartsForInsert method to insert the checklist records.
+            if (!partsToInsert.isEmpty()) {
+                FieldAXDBManager.createRequiredPartsForInsert(insertParts);
+            }
+        }
+        catch(Exception e) { 
+            System.debug('Exception: ' + e.getMessage() + '\n' + e.getStackTraceString());
+        }
+        return null;
+    }
+    
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 15 Apr, 2023
+*Version        : 1.0
+*Methods        : public static void createFaxPartsOnUpdate(List<fax__Job__c> newJobs, Map<Id, fax__Job__c> oldJobs)
+public static void deleteFaxParts(List<fax__Part__c> faxPartsToDelete) 
+=============================================================================================================================== */   
+    public static void createFaxPartsOnUpdate(List<fax__Job__c> newJobs, Map<Id, fax__Job__c> oldJobs) {
+        Set<Id> jobIds = new Set<Id>();
+        Set<Id> jobTypeIds = new Set<Id>();
+        
+        for (fax__Job__c job : newJobs) {
+            jobIds.add(job.Id);
+        }
+        List<fax__Job__c> jobsToUpdate = [SELECT Id, fax__Job_Type__c FROM fax__Job__c WHERE Id IN :jobIds];
+        List<fax__Part__c> faxPartsToDelete = [SELECT Id, Name, fax__Job_New__c FROM fax__Part__c WHERE fax__Job_New__c IN :jobIds];
+        
+        if (!jobsToUpdate.isEmpty()) {
+            for (fax__Job__c job : jobsToUpdate) {
+                jobTypeIds.add(job.fax__Job_Type__c);
+            }
+            
+            Map<Id, fax__Job_Type__c> jobTypes = new Map<Id, fax__Job_Type__c>([SELECT Id, Name FROM fax__Job_Type__c WHERE Id IN :jobTypeIds]);
+            
+            List<fax__Job__c> jobsList = new List<fax__Job__c>();
+            for (fax__Job__c job : jobsToUpdate) {
+                String oldJobType = oldJobs.get(job.Id).fax__Job_Type__c;
+                String newJobType = job.fax__Job_Type__c;
+                if (oldJobType != newJobType) {
+                    deleteFaxParts(faxPartsToDelete);
+                    if (jobTypes.containsKey(newJobType)) {
+                        jobsList.add(job);
+                    }
+                }
+            }
+            createFaxParts(jobsList);
+        }
+    }
+    
+    public static void deleteFaxParts(List<fax__Part__c> faxPartsToDelete) {
+        if (!faxPartsToDelete.isEmpty()) {
+            delete faxPartsToDelete;
+        }
+    }
+    
+    public static void createFaxParts(List<fax__Job__c> jobsList) {
+        List<fax__Part__c> faxPartsToInsert = new List<fax__Part__c>();
+        Set<Id> newJobTypeIds = new Set<Id>();
+        for (fax__Job__c job : jobsList) {
+            if (job.fax__Job_Type__c != null) {
+                newJobTypeIds.add(job.fax__Job_Type__c);
+            }
+        }
+        if (!newJobTypeIds.isEmpty()) {
+            List<fax__Required_Part__c> requiredParts = [SELECT Id, Name, fax__Default_Qty__c, fax__Product__c, fax__Job_Type__c FROM fax__Required_Part__c WHERE fax__Job_Type__c IN :newJobTypeIds];
+            for (fax__Job__c job : jobsList) {
+                for (fax__Required_Part__c requiredPart : requiredParts) {
+                    fax__Part__c part = new fax__Part__c();
+                    part.fax__Product__c = requiredPart.fax__Product__c;
+                    part.fax__Job_New__c = job.Id;
+                    part.fax__Quantity__c = requiredPart.fax__Default_Qty__c;
+                    part.Name = requiredPart.Name;
+                    
+                    faxPartsToInsert.add(part);
+                }
+            }
+            
+            insert faxPartsToInsert;
+        }
+    }
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 15 Apr, 2023
+*Version        : 1.0
+*Methods        : Public Static List<fax__Job__c> insertDbLable (List<fax__Job__c> jobListVar) 
+=============================================================================================================================== */ 
+    Public Static List<fax__Job__c> insertDbLable (List<fax__Job__c> jobListVar)
+    {
+        
+        List<fax__Job__c> insertJobList = new  List<fax__Job__c> ();
+        id jobIdVar;
+        
+        try
+        {
+            for(fax__Job__c jbv : jobListVar)
+            {    
+                jobIdVar = jbv.id;
+            }
+            List<fax__Job__c> jobQuery1 = [SELECT Id, Name, fax__Customer__r.Name, fax__Actual_Visit_Date_Time__c, fax__Alert_Icon_Link__c, fax__Cancelled_Reason__c, fax__Closed__c, fax__Completion_Date_Time__c, fax__Contact__c, fax__Customer_Name__c, fax__Customer_Signature__c, fax__DB_Label__c, fax__Engineer_Completion_Notes__c, fax__Engineer_Name__c, fax__Engineer_Signature__c, fax__Estimate__c, fax__Gantt_Color__c, fax__Job_Type__c, fax__Location__c, fax__Message_To_Engineer__c, fax__Next_Job__c, fax__Planned_Visit_Date_Time__c, fax__Previous_Job__c, fax__PriceBook__c, fax__Region__c, fax__Service_Plan__c, fax__Skip_Next_Job__c, fax__Source_Case__c, fax__Status__c, fax__Trigger_Job_Sheet_Email__c, fax__Urgency__c, fax__Visit_Description__c, fax__Visit_Type__c, fax__Service_Plan_Pricebook_Id__c, fax__Title_Text__c, Depot_Unit_Ownership__c, Case_Number__c, Notes__c, Contact_Phone__c, Contact_Email__c, Investigation_Required_Yes_no__c, Depot_Received_SN__c, ETA_of_FSE__c, Justification__c, MDR_Required__c, Field_Repeat_Repair__c, Product_Family__c, Primary_Symptom__c, Additional_Symptoms__c, Primary_Cause__c, Complaint_Verified__c, Investigation_Required__c, Service_Level__c, Waiting_for_Authorization_Date__c, In_Shipping_Date__c, Depot_Repeat_Repair__c, Previous_Repair_Details__c, Repair_Notes__c, Severity__c, Install_base__c, Received_Repair_Date__c, Service_Engineer__c FROM fax__Job__c Where id =:jobIdVar ];
+            for(fax__Job__c job : jobQuery1)
+            {
+                fax__Job__c jobVar = new fax__Job__c();
+                
+                if(job.fax__Visit_Type__c == 'Install/DeInstall')
+                {
+                    jobVar.id = job.id;
+                    jobVar.fax__Gantt_Color__c = '#002BFF'; //Color Code Blue
+                    
+                }
+                else if(job.fax__Visit_Type__c == 'Preventative Maintenance')
+                {
+                    jobVar.id = job.id;
+                    jobVar.fax__Gantt_Color__c = '#0CC907'; //Color Code Green 
+                    
+                }
+                else if(job.fax__Visit_Type__c == 'Training')
+                {
+                    jobVar.id = job.id;
+                    jobVar.fax__Gantt_Color__c = '#00E8FF'; //Color Code Electric Blue
+                    
+                }
+                if(job.Severity__c == 'Not Operational')
+                {
+                    jobVar.id = job.id; 
+                    jobVar.fax__Gantt_Color__c = '#FA1705'; //Color Code Red
+                    
+                }
+                else if(job.Severity__c == 'Operational with a work around')
+                {
+                    jobVar.id = job.id;
+                    jobVar.fax__Gantt_Color__c = '#FAB005'; //Color Code Orange
+                    
+                }
+                else if(job.Severity__c == 'Operational but a nuisance')
+                {
+                    jobVar.id = job.id;
+                    jobVar.fax__Gantt_Color__c = '#FAE705'; //Color Code Yellow
+                    
+                }
+                if(jobVar.fax__Gantt_Color__c == null){
+                    
+                    jobVar.fax__Gantt_Color__c = '#e5f0fa';
+                    
+                }
+                jobVar.id = job.id;
+                jobVar.fax__DB_Label__c = job.Name + ' - '+ String.valueOfGmt(job.fax__Planned_Visit_Date_Time__c)+ ' - '+job.fax__Customer__r.Name;
+                insertJobList.add(jobVar);
+            }
+            
+            System.debug(jobListVar);
+            
+            if(insertJobList.size() > 0)
+            {
+                List<fax__Job__c> result = FieldAxDBManager.insertDBValue(insertJobList);
+                
+            }
+            return null;
+        }
+        catch(Exception e)
+        {
+            System.debug('Exception Raised Due to' + e);
+            return Null;
+        }
+    }
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 15 Apr, 2023
+*Version        : 1.0
+*Methods        : Public Static List<fax__Job__c> UpdateDbLable (List<fax__Job__c> jobListVar)
+=============================================================================================================================== */ 
+    Public Static List<fax__Job__c> UpdateDbLable (List<fax__Job__c> updjobListVar,Map<id,fax__job__c> oldMapJob)
+    {
+        id jobIdVar;
+        String GanttcolorVar;
+        try
+        {
+            
+            List<fax__Job__c> UpdJobList = new  List<fax__Job__c> ();
+            for(fax__Job__c job1 : updjobListVar)
+            {
+                jobIdVar = job1.id;
+            }
+            
+            List<fax__Job__c> jobQuery2 = [SELECT Id, Name, fax__Customer__r.Name, fax__Actual_Visit_Date_Time__c, fax__Alert_Icon_Link__c, fax__Cancelled_Reason__c, fax__Closed__c, fax__Completion_Date_Time__c, fax__Contact__c, fax__Customer_Name__c, fax__Customer_Signature__c, fax__DB_Label__c, fax__Engineer_Completion_Notes__c, fax__Engineer_Name__c, fax__Engineer_Signature__c, fax__Estimate__c, fax__Gantt_Color__c, fax__Job_Type__c, fax__Location__c, fax__Message_To_Engineer__c, fax__Next_Job__c, fax__Planned_Visit_Date_Time__c, fax__Previous_Job__c, fax__PriceBook__c, fax__Region__c, fax__Service_Plan__c, fax__Skip_Next_Job__c, fax__Source_Case__c, fax__Status__c, fax__Trigger_Job_Sheet_Email__c, fax__Urgency__c, fax__Visit_Description__c, fax__Visit_Type__c, fax__Service_Plan_Pricebook_Id__c, fax__Title_Text__c, Depot_Unit_Ownership__c, Case_Number__c, Notes__c, Contact_Phone__c, Contact_Email__c, Investigation_Required_Yes_no__c, Depot_Received_SN__c, ETA_of_FSE__c, Justification__c, MDR_Required__c, Field_Repeat_Repair__c, Product_Family__c, Primary_Symptom__c, Additional_Symptoms__c, Primary_Cause__c, Complaint_Verified__c, Investigation_Required__c, Service_Level__c, Waiting_for_Authorization_Date__c, In_Shipping_Date__c, Depot_Repeat_Repair__c, Previous_Repair_Details__c, Repair_Notes__c, Severity__c, Install_base__c, Received_Repair_Date__c, Service_Engineer__c FROM fax__Job__c Where id =:jobIdVar ];
+            if(jobQuery2.size() > 0)
+            {
+                for(fax__Job__c job : jobQuery2)
+                {
+                    fax__Job__c jobVar = new fax__Job__c();
+                    if(job.fax__Visit_Type__c == 'Install/DeInstall')
+                    {
+                        jobVar.id = job.id;
+                        jobVar.fax__Gantt_Color__c = '#002BFF'; //Color Code Blue
+                        GanttcolorVar = '#002BFF'; //Color Code Blue
+                    }
+                    else if(job.fax__Visit_Type__c == 'Preventative Maintenance')
+                    {
+                        jobVar.id = job.id; 
+                        jobVar.fax__Gantt_Color__c = '#0CC907'; //Color Code Green
+                        GanttcolorVar = '#0CC907'; //Color Code Green
+                    }
+                    else if(job.fax__Visit_Type__c == 'Training')
+                    {
+                        jobVar.id = job.id;
+                        jobVar.fax__Gantt_Color__c = '#00E8FF'; //Color Code Electric Blue
+                        GanttcolorVar = '#00E8FF'; //Color Code Electric Blue
+                    }
+                    if(job.Severity__c == 'Not Operational')
+                    {
+                        jobVar.id = job.id;
+                        jobVar.fax__Gantt_Color__c = '#FA1705'; //Color Code Red
+                        GanttcolorVar = '#FA1705'; //Color Code Red
+                    }
+                    else if(job.Severity__c == 'Operational with a work around')
+                    {
+                        jobVar.id = job.id;
+                        jobVar.fax__Gantt_Color__c = '#FAB005'; //Color Code Orange
+                        GanttcolorVar = '#FAB005'; //Color Code Orange
+                    }
+                    else if(job.Severity__c == 'Operational but a nuisance')
+                    {
+                        jobVar.id = job.id;
+                        jobVar.fax__Gantt_Color__c = '#FAE705'; //Color Code Yellow
+                        GanttcolorVar = '#FAE705'; //Color Code Yellow
+                    }
+                    
+                    jobVar.id = job.id;
+                    jobVar.fax__DB_Label__c = job.Name + ' - ' + String.valueOfGmt(job.fax__Planned_Visit_Date_Time__c) + ' - ' + job.fax__Customer__r.Name;
+                    UpdJobList.add(jobVar);
+                }
+            }
+            System.debug(UpdJobList.size());
+            if(UpdJobList.size() > 0)
+            {
+                FieldAxDBManager.UpdateDBValue(UpdJobList);
+                jobAssignmentupdate(jobIdVar,GanttcolorVar);
+            } 
+            return null;
+        }
+        catch(Exception e)
+        {
+            System.debug('Exception Raised Due to' + e);
+            return Null;
+        }
+    }
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 15 Apr, 2023
+*Version        : 1.0
+*Methods        : Public Static List<fax__Job__c> insertDbLable (List<fax__Job__c> jobListVar) 
+=============================================================================================================================== */ 
+    Public Static List<fax__Assigned_Engineer__c> jobAssignmentupdate (id jobID,String ganttColor)
+    {
+        List<fax__Assigned_Engineer__c> assignmentVarList = new  List<fax__Assigned_Engineer__c> ();
+        
+        try
+        {
+            fax__Job__c job1 = [Select id,Name,Product_Family__c From fax__Job__c Where id = :jobID];
+            
+            List<fax__Assigned_Engineer__c> AssignmetQuery = [SELECT fax__Accepted_Date__c, fax__All_Day__c, fax__DB_Label__c, fax__End_Start_time_cus__c, fax__End__c, fax__Gantt_Color__c, fax__Job__c, fax__Job_new__r.Name, fax__Job_new__r.Product_Family__c, fax__Rejection_Reason__c, fax__Service_Engineer__c, fax__Start_Date_Time_cu__c, fax__Start__c, fax__Status__c, fax__Travel_End__c, fax__Travel_Start__c, fax__Date__c, fax__Is_Job_Closed__c, fax__Job_Status__c, fax__Job_Time__c, fax__Job_Type__c, fax__Latitude__c, fax__Longitude__c, fax__Region_Id__c, fax__Route__c, fax__Site_City__c, fax__Site_Country__c, fax__Site_Postal_Code__c, fax__Site_State__c, fax__Site__c, fax__Title_Text__c, fax__Travel_Time__c, Service_Engineer_Email__c, Id, Name FROM fax__Assigned_Engineer__c WHERE fax__Job_new__c =: jobID];
+            If(AssignmetQuery.size() > 0)
+            {
+                for(fax__Assigned_Engineer__c Ase : AssignmetQuery)
+                {
+                    fax__Assigned_Engineer__c AseVar = new fax__Assigned_Engineer__c();
+                    AseVar.Id = Ase.id;
+                    AseVar.fax__DB_Label__c = job1.Name + ' - ' + Ase.fax__Site__c + ' - ' + job1.Product_Family__c;
+                    AseVar.fax__Gantt_Color__c = ganttColor;
+                    if(ganttColor == '#e5f0fa' || ganttColor == null)
+                    {
+                        ganttColor = '#5f99f5';
+                    }
+                    assignmentVarList.add(AseVar);
+                }
+                if(assignmentVarList.size() > 0)
+                {
+                    FieldAxDBManager.UpdateAssignment(assignmentVarList);
+                }
+            }
+            return null;
+        }
+        catch(Exception e)
+        {
+            System.debug('Exception Raised Due to' + e);
+            return Null;
+        }
+    }
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 15 Apr, 2023
+*Version        : 1.0
+*Methods        : Public Static List<fax__Job__c> updateCase (List<fax__Job__c> caseId)
+======================================================================================================================================================================================================================*/
+    public static List<Case> updateCase(List<fax__Job__c> jobId) {
+        List<Case> casesToUpdate = new List<Case>();
+        
+        try {
+            // Retrieve the relevant cases
+            Set<String> caseIds = new Set<String>();
+            for (fax__Job__c job : jobId) {
+                if (job.fax__Status__c == 'completed') {
+                    caseIds.add(job.fax__Source_Case__c);
+                }
+            }
+            
+            if (!caseIds.isEmpty()) {
+                casesToUpdate = [SELECT Id, Primary_Cause__c, Primary_Symptom__c, Complaint_Verified__c, Justification__c FROM Case WHERE Id IN :caseIds];
+                
+                for (Case caseObj : casesToUpdate) {
+                    for (fax__Job__c job : jobId) {
+                        if ((job.fax__Status__c == 'completed') && job.fax__Source_Case__c == caseObj.Id) {
+                            //caseObj.Id = job.fax__Source_Case__c;
+                            caseObj.Primary_Cause__c = job.Primary_Cause__c;
+                            caseObj.Primary_Symptom__c = job.Primary_Symptom__c;
+                            caseObj.Complaint_Verified__c = job.Complaint_Verified__c;
+                            caseObj.Justification__c = job.Justification__c;
+                        }
+                    }
+                }
+                
+                if (!casesToUpdate.isEmpty()) {
+                    FieldAxDBManager.updatecaseDB(casesToUpdate);
+                    
+                }
+            }
+            
+            return casesToUpdate;
+        } catch (Exception e) {
+            System.debug('An error occurred while updating the cases: ' + e.getMessage());
+            return null;
+        }
+    }
+    
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 15 Apr, 2023
+*Version        : 1.0
+*Methods        : public static List<fax__Job__c> createChecklistItemsForInsert(List<fax__Job__c> newJobs)
+======================================================================================================================================================================================================================*/
+    Public Static List<fax__Job__c> UpdateJobField(id RecID,String Status)
+    {
+        List<fax__Job__c> jobList = new List<fax__Job__c>();
+        
+        fax__Job__c jobVar = new fax__Job__c();
+        
+        if(Status == 'Received Repair')
+        {
+            jobVar.Received_Repair_Date__c = System.today();
+        }
+        else if(Status == 'Waiting for Authorization')
+        {
+            jobVar.Waiting_for_Authorization_Date__c = System.today();
+        }
+        else if(Status == 'Repair in Progress')
+        {
+            jobVar.fax__Actual_Visit_Date_Time__c = System.today();
+        }
+        else if(Status == 'In Shipping')
+        {
+            jobVar.In_Shipping_Date__c = System.today();
+        }
+        else if(Status == 'Closed/Shipped')
+        {
+            jobVar.fax__Completion_Date_Time__c = System.today();
+        }
+        jobVar.id = RecID;
+        jobList.add(jobVar);
+        if(jobList.size() > 0)
+        {
+            FieldAxDBManager.jobUpdateVal(jobList);
+        }
+        return null;
+    }
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 25 Apr, 2023
+*Version        : 1.0
+*Methods        : Public Static List<fax__Job__c> updateInstallbase(List<Job> newJobs, Map<Id, Job> oldJobMap)
+======================================================================================================================================================================================================================*/
+    public static List<fax__Job__c> updateInstallbase(List<fax__Job__c> newJobs, Map<Id, fax__Job__c> oldJobMap) {
+        List<fax__Job_System__c> jobItemToUpdate = new List<fax__Job_System__c>();
+        Map<Id, InstallBase__c> installbaseToUpdate = new Map<Id, InstallBase__c>();
+        List<InstallBase__c> installBaseLst =new List <InstallBase__c>();
+        try{
+            for (fax__Job__c job : newJobs) {
+                fax__Job__c oldJob = oldJobMap.get(job.Id);
+                
+                if (job.fax__Status__c == 'Completed' || job.fax__Status__c == 'Closed/Shipped') {
+                    List<fax__Job_System__c> jobitemLst = [SELECT Id, Name, fax__Job_New__c, fax__Job__c, fax__Product__c, fax__Quantity__c, DSX_Serial_Number__c, Install_base__c, PC_Operating_System__c, System_Serial_Number__c, Operating_System__c, Pipette_Serial_Number__c, Reader_Serial_Number__c, Camera_Serial_Number__c, Reader_Incubator_SN__c, Revelation_Version__c, LIS_Link_Version__c, Agility_Software_Version__c, CTV_Version__c, Configuration_Version__c, Multiplier_Version__c, MultiSoft_Version__c, Main_Firmware_Version__c, PAL_Firmware_Version__c, Pipette_Firmware_Version__c, Reader_Firmware_Version__c, Daughter_Board_Firmware_Version__c, Matrix_Version__c, Pipette_SN__c, Multiplier_System_Configuration__c, Multiplier_System_Drivers__c, DS2_Serial_Number__c 
+                                                           FROM fax__Job_System__c 
+                                                           WHERE fax__Job_New__c = :job.Id];
+                    
+                    for (fax__Job_System__c jobIlst : jobitemLst) {
+                        jobItemToUpdate.add(jobIlst);
+                        
+                        if (!installbaseToUpdate.containsKey(jobIlst.Install_base__c)) {
+                            installbaseToUpdate.put(jobIlst.Install_base__c, new InstallBase__c(Id = jobIlst.Install_base__c));
+                        }
+                        
+                        InstallBase__c installBase = installbaseToUpdate.get(jobIlst.Install_base__c);
+                        installBase.Id = jobIlst.Install_base__c;
+                        installBase.CTV__c = jobIlst.CTV_Version__c;
+                        installBase.Revelation_Version__c = jobIlst.Revelation_Version__c;
+                        installBase.Name = jobIlst.DSX_Serial_Number__c;
+                        installBase.LIS_Link_Version__c = jobIlst.LIS_Link_Version__c;
+                        installBase.Operating_System__c = jobIlst.PC_Operating_System__c;
+                        installBase.Software__c = jobIlst.Agility_Software_Version__c;
+                        installBase.CTV__c = jobIlst.CTV_Version__c;
+                        // installBase.Configuration__c = jobIlst.Configuration_Version__c;
+                        installBase.Multiplier_Version__c = jobIlst.Multiplier_Version__c;
+                        installBase.MultiSoft_Version__c = jobIlst.MultiSoft_Version__c;
+                        installBase.Main_Firmware_Version__c = jobIlst.Main_Firmware_Version__c;
+                        installBase.PAL_Firmware_Version__c = jobIlst.PAL_Firmware_Version__c;
+                        installBase.Pipette_Serial_Number__c = jobIlst.Pipette_Serial_Number__c;
+                        installBase.Pipette_Firmware_Version__c = jobIlst.Pipette_Firmware_Version__c;
+                        installBase.Reader_Serial_Number__c = jobIlst.Reader_Serial_Number__c;
+                        installBase.Reader_Firmware_Version__c = jobIlst.Reader_Firmware_Version__c;
+                        installBase.Camera_Serial_Number__c = jobIlst.Camera_Serial_Number__c;
+                        installBase.Daughter_Board_Firmware_Version__c =jobIlst.Daughter_Board_Firmware_Version__c;
+                        installBase.Reader_Incubator_SN__c = jobIlst.Reader_Incubator_SN__c;
+                        installBase.Matrix_Version__c = jobIlst.Matrix_Version__c;
+                        installBase.Pipette_SN__c = JobIlst.Pipette_SN__c;
+                        
+                        installBaseLst.add(installBase);
+                    }
+                }
+            }
+            if (!installBaseLst.isEmpty()) {
+                FieldAxDBManager.UpdateInstallbase(installBaseLst); 
+            }return null;
+            
+        }catch (Exception e)
+        {
+            System.debug('An exception occurred: ' + e.getMessage());
+        } return null;
+    }
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 25 Apr, 2023
+*Version        : 1.0
+*Methods        : public static List<fax__Job__c> generateOrder(List<fax__Job__c> newJobs, Map<Id, fax__Job__c> oldMap)
+======================================================================================================================================================================================================================*/
+    public static List<fax__Job__c> generateOrder(List<fax__Job__c> newJobs, Map<Id, fax__Job__c> oldMap) {
+    List<SCRB_SalesOrder__c> newOrders = new List<SCRB_SalesOrder__c>();
+    List<SCRB_SalesOrderLineItem__c> newOrderLineItems = new List<SCRB_SalesOrderLineItem__c>();
+     try {
+    for (fax__Job__c job : newJobs) {
+        // Check if the job status has been updated to completed
+        if (job.fax__Status__c == 'completed' && oldMap.get(job.Id).fax__Status__c != 'completed') {
+            
+            // Check if an order already exists for the job 	
+            List<SCRB_SalesOrder__c> existingOrders = [SELECT Id, Job__c FROM SCRB_SalesOrder__c WHERE Job__c = :job.Id];
+            SCRB_SalesOrder__c order;
+            if (existingOrders.size() > 0) {
+                order = existingOrders[0];
+            } else {
+                // Create the order record
+                order = new SCRB_SalesOrder__c();
+                order.AccountID__c = job.fax__Customer__c;
+                order.Case__c = job.fax__Source_Case__c;
+                order.Job__c = job.Id;
+            }
+            newOrders.add(order);
+            
+            // Save the order
+            if(newOrders.size()>0){
+                FieldAxDBManager.generateOrderDBor(newOrders);
+               }
+            
+            
+            // Get the ID of the order
+            Id orderId = order.Id;
+            
+            // Create order line items from job line items and parts
+            List<fax__Job_System__c> jobLineItems = [SELECT Id, Name, fax__Job_New__c, fax__List_Pricce__c, fax__Product__c, fax__Quantity__c, fax__Unit_Price__c FROM fax__Job_System__c WHERE fax__Job_New__c = :job.Id];
+            
+            List<fax__Part__c> jobParts = [SELECT Id, Name, fax__Job_New__c, fax__Job__c, fax__Product_Name__c, fax__Product__c, fax__Quantity__c, fax__Serial_Number__c, fax__costs__c FROM fax__Part__c WHERE fax__Job_New__c = :job.Id];
+            
+            for (fax__Job_System__c jobLineItem : jobLineItems) {
+                SCRB_SalesOrderLineItem__c newOrderLineItem = new SCRB_SalesOrderLineItem__c();
+                date todaydate = System.today();
+                newOrderLineItem.OrderName__c = orderId; 
+                newOrderLineItem.ItemID__c = jobLineItem.fax__Product__c;
+                newOrderLineItem.Quantity__c = jobLineItem.fax__Quantity__c;
+                newOrderLineItem.Unit_List_Price__c = jobLineItem.fax__List_Pricce__c;
+                newOrderLineItem.Date_Promised__c = todaydate.addDays(2);
+                newOrderLineItems.add(newOrderLineItem);
+            }
+            
+            for (fax__Part__c jobPart : jobParts) 
+            {
+                date todaydate = System.today();
+                SCRB_SalesOrderLineItem__c newOrderLineItem = new SCRB_SalesOrderLineItem__c();
+                newOrderLineItem.OrderName__c = orderId;
+                newOrderLineItem.ItemID__c = jobPart.fax__Product__c;
+                newOrderLineItem.Quantity__c = jobPart.fax__Quantity__c;
+                newOrderLineItem.Date_Promised__c = todaydate.addDays(2);
+                newOrderLineItems.add(newOrderLineItem);
+            }
+        }
+    }
+   
+        FieldAxDBManager.generateOrderDBorl(newOrderLineItems);	
+        return null;
+    }
+    catch (Exception e) {
+        System.debug('Error creating order line item: ' + e.getMessage());
+    }
+    return null;
+}
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 25 Apr, 2023
+*Version        : 1.0
+*Methods        : public static List<fax__Job__c> JobSeverityUpdate(List<fax__Job__c> newJobList)
+======================================================================================================================================================================================================================*/
+    Public static List<fax__Job__c> JobSeverityUpdate ( List<fax__Job__c> newJobList)
+    {
+        List<fax__Job__c> severityVal = new List<fax__Job__c> ();
+        
+        for(fax__Job__c jb1 : newJobList)
+        {
+            fax__Job__c JobSev = new fax__Job__c ();
+            
+            if(jb1.fax__Visit_Type__c == 'Preventative Maintenance' || jb1.fax__Visit_Type__c == 'Training'  || jb1.fax__Visit_Type__c == 'Install/DeInstall')
+            {
+                JobSev.Severity__c = 'Operational';
+            }
+            JobSev.id = jb1.id;
+            severityVal.add(JobSev);
+        }
+        if(severityVal.size() > 0)
+        {
+            FieldAxDBManager.updateSeverity(severityVal);
+        }
+        return null;
+    }
+    /*===================================================================================================================================================================================================================
+*Class Name     : FieldAxAppManager
+*Company        : Merfantz Technologies Pvt Ltd
+*Date           : 28 Apr, 2023
+*Version        : 1.0
+*Methods        :  public static List<fax__Job__c> updateJobLineItems(List<fax__Job__c> jobsToUpdate) 
+======================================================================================================================================================================================================================*/
+    public static List<fax__Job__c> updateJobLineItems(List<fax__Job__c> jobsToUpdate) {
+        try {
+            
+            Set<Id> jobLineItemIds = new Set<Id>();
+            List<fax__Job_System__c> updatejobItemList = new List<fax__Job_System__c>();
+            for (fax__Job__c job : jobsToUpdate) {
+                jobLineItemIds.add(job.Id);
+            }
+            
+            // Query the Job_Line_Items with the related Jobs
+            List<fax__Job_System__c> jobLineItemsToUpdate = [SELECT Id, Name, fax__Job_New__c,Install_base__c, ProductFamily__c FROM fax__Job_System__c WHERE fax__Job_New__c IN :jobLineItemIds];
+            
+            // Loop through the Job_Line_Items and update the picklist field if necessary
+            for (fax__Job_System__c jobLineItem : jobLineItemsToUpdate) {
+                for (fax__Job__c job : jobsToUpdate) {
+                    InstallBase__c installBase = new InstallBase__c(Id = jobLineItem.Install_base__c);
+                    if (jobLineItem.fax__Job_New__c == job.Id && job.Product_Family__c != null) {
+                        jobLineItem.ProductFamily__c = job.Product_Family__c;
+                        
+                        
+                        updatejobItemList.add(jobLineItem);
+                        break;
+                    }
+                }
+            }
+            
+            // Update the Job_Line_Items
+            if (!updatejobItemList.isEmpty()) 
+            {
+                FieldAxDBManager.updateProductfa(updatejobItemList);
+            } 
+            
+            return null;
+        } catch (Exception ex) {
+            // Handle the exception
+            System.debug('An error occurred: ' + ex.getMessage());
+            return null;
+        }
+    }
+    
+}
